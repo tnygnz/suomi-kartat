@@ -1,0 +1,92 @@
+name: stil-onar
+# Tek seferlik onarım: a899165'te "Ultra UI" iskeletiyle ezilen tam tasarımı
+# (1088 satırlık Paper & Ink styles.css) geri getirir ve app.js'in eklediği
+# eşleştirme sınıflarını (.selected/.matched) tamamlar.
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: stil-onar
+  cancel-in-progress: false
+jobs:
+  onar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Tam tasarımı geri getir, eşleştirme sınıflarını ekle
+        run: |
+          set -euo pipefail
+          git checkout 212bae5 -- sanat/styles.css
+          cat >> sanat/styles.css <<'CSS'
+
+/* ================================================================== */
+/* Eşleştirme oyunu (app.js · checkMatchSelection) durum sınıfları     */
+/* ================================================================== */
+.match-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.match-card {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 14px 12px;
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease, opacity 0.2s ease;
+}
+
+.match-grid .selected {
+  border-color: var(--blue);
+  background: var(--blue-soft);
+  box-shadow: inset 0 0 0 1px var(--blue);
+}
+
+.match-grid .matched {
+  border-color: var(--green);
+  opacity: 0.6;
+}
+CSS
+
+      - name: Damgayı tazele ve dosyayı denetle
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, pathlib, re
+          css = pathlib.Path("sanat/styles.css").read_text(encoding="utf-8")
+          assert css.count("{") == css.count("}"), "parantez dengesi bozuk"
+          assert len(css.splitlines()) > 1088, "tam tasarım geri gelmedi"
+          for cls in (".pad", ".hero", ".tabs", ".topbar", ".ico", ".match-grid .matched"):
+              assert cls in css, "eksik kural: " + cls
+
+          parts = []
+          for f in ("sanat/app.js", "sanat/styles.css", "sanat/data.js"):
+              parts.append(hashlib.sha256(pathlib.Path(f).read_bytes()).hexdigest() + "  " + f + "\n")
+          damga = hashlib.sha256("".join(parts).encode()).hexdigest()[:8]
+
+          p = pathlib.Path("sanat/index.html")
+          s = p.read_text(encoding="utf-8")
+          for f in ("styles.css", "data.js", "app.js"):
+              s = re.sub(re.escape(f) + r"(\?v=[0-9a-zA-Z._-]+)?", f + "?v=" + damga, s)
+          p.write_text(s, encoding="utf-8")
+          print("damga:", damga, "· styles.css satır:", len(css.splitlines()))
+          PY
+
+      - name: İşle ve gönder
+        run: |
+          set -euo pipefail
+          git config user.name "sanat-bot"
+          git config user.email "sanat-bot@users.noreply.github.com"
+          git add sanat/styles.css sanat/index.html
+          if git diff --cached --quiet; then echo "değişiklik yok"; exit 0; fi
+          git commit -m "fix: stilleri geri getir — tam tasarım geri yüklendi (Ultra UI iskeleti kaldırıldı)"
+          git push origin HEAD:main
