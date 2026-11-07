@@ -1,119 +1,3 @@
-// --- Faz 4: Data Export & Import Engine ---
-function exportUserData() {
-  var srsData = getSRSData();
-  var favs = localStorage.getItem('suomi_favs_v1') || '[]';
-  var payload = {
-    version: '1.0',
-    timestamp: Date.now(),
-    srs: srsData,
-    favorites: JSON.parse(favs)
-  };
-  
-  var dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(payload));
-  var downloadAnchor = document.createElement('a');
-  downloadAnchor.setAttribute("href", dataStr);
-  downloadAnchor.setAttribute("download", "suomi_progress_backup.json");
-  document.body.appendChild(downloadAnchor);
-  downloadAnchor.click();
-  downloadAnchor.remove();
-}
-
-function importUserData(jsonText) {
-  try {
-    var parsed = JSON.parse(jsonText);
-    if (parsed.srs) {
-      localStorage.setItem(SRS_KEY, JSON.stringify(parsed.srs));
-    }
-    if (parsed.favorites) {
-      localStorage.setItem('suomi_favs_v1', JSON.stringify(parsed.favorites));
-    }
-    alert('İlerlemeniz başarıyla yüklendi!');
-    window.location.reload();
-  } catch (e) {
-    alert('Geçersiz yedek dosyası!');
-  }
-}
-// --- Faz 3: Mini Oyunlar (Matching Game) ---
-function startMatchingGame(wordList) {
-  if (!wordList || wordList.length < 6) return;
-  var sample = wordList.slice(0, 6);
-  var cards = [];
-  
-  sample.forEach(function(item, idx) {
-    cards.push({ id: idx, text: item.fi || item.word, type: 'fi' });
-    cards.push({ id: idx, text: item.tr || item.meaning, type: 'tr' });
-  });
-  
-  cards.sort(function() { return 0.5 - Math.random(); });
-  window.currentMatchCards = cards;
-  window.selectedMatchCard = null;
-}
-
-function checkMatchSelection(cardIdx, element) {
-  var card = window.currentMatchCards[cardIdx];
-  if (!card) return;
-  
-  if (!window.selectedMatchCard) {
-    window.selectedMatchCard = { card: card, el: element };
-    element.classList.add('selected');
-  } else {
-    var prev = window.selectedMatchCard;
-    if (prev.card.id === card.id && prev.card.type !== card.type) {
-      element.classList.add('matched');
-      prev.el.classList.add('matched');
-      if (typeof speakFi === 'function' && card.type === 'fi') speakFi(card.text);
-    } else {
-      element.classList.remove('selected');
-      prev.el.classList.remove('selected');
-    }
-    window.selectedMatchCard = null;
-  }
-}
-// --- Faz 2: SRS Öğrenme Motoru ---
-var SRS_KEY = 'suomi_srs_data_v1';
-
-function getSRSData() {
-  try {
-    return JSON.parse(localStorage.getItem(SRS_KEY)) || {};
-  } catch (e) {
-    return {};
-  }
-}
-
-function saveSRSScore(wordId, quality) {
-  // quality: 1 (Zor/Unuttum), 3 (Normal), 5 (Kolay/Öğrendim)
-  var data = getSRSData();
-  var item = data[wordId] || { interval: 1, reps: 0, ease: 2.5, dueDate: Date.now() };
-  
-  if (quality >= 3) {
-    if (item.reps === 0) item.interval = 1;
-    else if (item.reps === 1) item.interval = 6;
-    else item.interval = Math.round(item.interval * item.ease);
-    item.reps += 1;
-  } else {
-    item.reps = 0;
-    item.interval = 1;
-  }
-  
-  item.ease = Math.max(1.3, item.ease + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02)));
-  item.dueDate = Date.now() + item.interval * 24 * 60 * 60 * 1000;
-  
-  data[wordId] = item;
-  localStorage.setItem(SRS_KEY, JSON.stringify(data));
-}
-// --- Faz 1: PWA & Speech Synthesis ---
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js').catch(() => {});
-}
-
-function speakFi(text) {
-  if (!('speechSynthesis' in window)) return;
-  window.speechSynthesis.cancel();
-  var u = new SpeechSynthesisUtterance(text);
-  u.lang = 'fi-FI';
-  u.rate = 0.9;
-  window.speechSynthesis.speak(u);
-}
 /* Sanat — kişisel Fince ↔ Türkçe çalışma uygulaması
    Tamamen yerel çalışır: ağ isteği, reklam, analitik, uygulama içi satın alma yok.
    Tüm ilerleme localStorage'da tutulur. */
@@ -141,8 +25,6 @@ function speakFi(text) {
   var session = null;       // { mode, queue, i, ok, bad, dir, revealed, locked, feedback }
   var tab = "study";
   var listQuery = "";
-  var listLimit = 200;
-  var listLimit = 200;
   var listCat = "";
   /* Rekor tablosundan dönen oturumun kısa özeti: kalıcı değil, ~9 sn sonra silinir. */
   var recSummary = null;
@@ -1513,7 +1395,7 @@ function speakFi(text) {
 
     var search = document.getElementById("search");
     search.addEventListener("input", function () {
-      listQuery = this.value; listLimit = 200;
+      listQuery = this.value;
       fillRows();
     });
     fillRows();
